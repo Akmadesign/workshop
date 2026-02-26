@@ -772,9 +772,9 @@ function renderPage(factoryNames) {
                   : o.destination==='client'?'👤 العميل':o.destination==='warehouse'?'🏭 المستودع':'—'}
               </td>
               <td style="padding:8px 12px">${showOrderAttachments(o.deliveryNotes, true)}</td>
-              ${canEdit() ? `<td style="padding:8px 12px">
-                <div style="display:flex;gap:5px;align-items:center">
-                  <button onclick="toggleStatus('${o.id}','${o.status}')" title="${o.status==='done'?'تراجع عن الإنتهاء':'تم'}" style="${o.status==='done'?btnSm('success'):btnSm()}">${o.status==='done'?'↩️':'✅'}</button>
+              ${canEdit() ? `<td style="padding:6px 8px;white-space:nowrap;min-width:120px">
+                <div style="display:flex;gap:3px;align-items:center;flex-wrap:nowrap">
+                  <button onclick="toggleStatus('${o.id}','${o.status}')" title="${o.status==='done'?'تراجع':'تم'}" style="${o.status==='done'?btnSm('success'):btnSm()}">${o.status==='done'?'↩️':'✅'}</button>
                   <button onclick="editOrder('${o.id}')" title="تعديل" style="${btnSm()}">✏️</button>
                   <button onclick="showHistory('${o.id}')" title="السجل" style="${btnSm()}">📋</button>
                   ${isAdmin()?`<button onclick="deleteOrder('${o.id}')" title="حذف" style="${btnSm('danger')}">🗑️</button>`:''}
@@ -828,10 +828,9 @@ function renderPage(factoryNames) {
 }
 
 function btnSm(type='') {
-  const bg = type==='danger' ? 'rgba(232,64,64,.15)' : '#1e2130';
-  const color = type==='danger' ? '#e84040' : '#e8eaf0';
-  const border = type==='danger' ? 'rgba(232,64,64,.3)' : '#2a2f42';
-  return `background:${bg};color:${color};border:1px solid ${border};border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:'Cairo',sans-serif`;
+  if(type==='danger') return "background:rgba(232,64,64,.15);color:#e84040;border:1px solid rgba(232,64,64,.3);border-radius:6px;padding:5px 7px;font-size:13px;cursor:pointer;font-family:'Cairo',sans-serif;line-height:1";
+  if(type==='success') return "background:rgba(46,204,138,.15);color:#2ecc8a;border:1px solid rgba(46,204,138,.3);border-radius:6px;padding:5px 7px;font-size:13px;cursor:pointer;font-family:'Cairo',sans-serif;line-height:1";
+  return "background:#1e2130;color:#e8eaf0;border:1px solid #2a2f42;border-radius:6px;padding:5px 7px;font-size:13px;cursor:pointer;font-family:'Cairo',sans-serif;line-height:1";
 }
 
 function renderDashboard(factoryNames) {
