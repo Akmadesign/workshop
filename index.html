@@ -774,7 +774,7 @@ function renderPage(factoryNames) {
               <td style="padding:8px 12px">${showOrderAttachments(o.deliveryNotes, true)}</td>
               ${canEdit() ? `<td style="padding:8px 12px">
                 <div style="display:flex;gap:5px;align-items:center">
-                  ${o.status!=='done'?`<button onclick="markDone('${o.id}')" title="تم" style="${btnSm()}">✅</button>`:''}
+                  <button onclick="toggleStatus('${o.id}','${o.status}')" title="${o.status==='done'?'تراجع عن الإنتهاء':'تم'}" style="${o.status==='done'?btnSm('success'):btnSm()}">${o.status==='done'?'↩️':'✅'}</button>
                   <button onclick="editOrder('${o.id}')" title="تعديل" style="${btnSm()}">✏️</button>
                   <button onclick="showHistory('${o.id}')" title="السجل" style="${btnSm()}">📋</button>
                   ${isAdmin()?`<button onclick="deleteOrder('${o.id}')" title="حذف" style="${btnSm('danger')}">🗑️</button>`:''}
@@ -1223,6 +1223,18 @@ window.markDone = async function(id) {
     await updateDoc(doc(db,'orders',id), {status:'done', updatedAt:serverTimestamp(), updatedBy:currentUser.uid});
     await logActivity(id, 'status', 'تم تغيير الحالة إلى: تم ✅');
     showNotif('تم تحديد الطلب كمكتمل ✅');
+  } catch(e) { showNotif('خطأ: '+e.message,true); }
+};
+
+window.toggleStatus = async function(id, currentStatus) {
+  const isDone = currentStatus === 'done';
+  const newStatus = isDone ? 'pending' : 'done';
+  const msg = isDone ? 'تم التراجع عن الإنتهاء' : 'تم تحديد الطلب كمكتمل ✅';
+  const logMsg = isDone ? 'تم التراجع — الحالة: قيد التنفيذ' : 'تم تغيير الحالة إلى: تم ✅';
+  try {
+    await updateDoc(doc(db,'orders',id), {status:newStatus, updatedAt:serverTimestamp(), updatedBy:currentUser.uid});
+    await logActivity(id, 'status', logMsg);
+    showNotif(msg);
   } catch(e) { showNotif('خطأ: '+e.message,true); }
 };
 
