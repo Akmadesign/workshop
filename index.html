@@ -521,6 +521,7 @@ function render() {
     ${tabBtn('late','🔴 المتأخرة', late)}
     ${isAdmin() ? tabBtn('factories','🏗️ المصانع') : ''}
     ${isAdmin() ? tabBtn('users_mgmt','👥 المستخدمون') : ''}
+    ${isAdmin() ? tabBtn('installation','🔧 التركيب') : ''}
   </div>
 
   <!-- CONTENT -->
@@ -670,6 +671,7 @@ function renderPage(factoryNames) {
   if (currentTab === 'dashboard') return renderDashboard(factoryNames);
   if (currentTab === 'factories') return renderFactoriesPage();
   if (currentTab === 'users_mgmt') return renderUsersPage();
+  if (currentTab === 'installation') { setTimeout(renderInstallationTracker, 50); return '<div id="ordersContainer"></div>'; }
 
   let filtered = [...orders];
   if (currentTab === 'pending') filtered = orders.filter(o => o.status !== 'done');
@@ -785,7 +787,7 @@ function renderPage(factoryNames) {
                   <button onclick="toggleStatus('${o.id}','${o.status}')" title="${o.status==='done'?'تراجع':'تم'}" style="${o.status==='done'?btnSm('success'):btnSm()}">${o.status==='done'?'↩️':'✅'}</button>
                   <button onclick="editOrder('${o.id}')" title="تعديل" style="${btnSm()}">✏️</button>
                   <button onclick="showHistory('${o.id}')" title="السجل" style="${btnSm()}">📋</button>
-                  ${isAdmin()?`<button onclick="openInstallPage('${o.id}')" title="تفاصيل التركيب" style="${o.installation?btnSm('success'):btnSm()}">🔧</button>`:''}
+                  ${isAdmin()?`<button onclick="${o.installation?'openInstallPage(\''+o.id+'\')':'showNotif(\'فعّل تشك بوكس التركيب أولاً\',true)'}" title="تفاصيل التركيب" style="${o.installation?btnSm('success'):'border:none;border-radius:6px;padding:5px 7px;font-size:13px;cursor:not-allowed;background:#1e2130;color:#4a4f65;opacity:.5;line-height:1'}">🔧</button>`:''}
                   ${isAdmin()?`<button onclick="deleteOrder('${o.id}')" title="حذف" style="${btnSm('danger')}">🗑️</button>`:''}
                 </div>
               </td>` : ''}
@@ -1172,6 +1174,135 @@ window.toggleInstallation = async function(id, checked) {
 
 
 
+
+// ===== INSTALLATION TRACKER =====
+function renderInstallationTracker() {
+  const container = document.getElementById('ordersContainer');
+  if (!container) return;
+
+  const installOrders = orders.filter(o => o.installation);
+
+  function getInstallStatus(o) {
+    const ic = o.installChecks || {};
+    if (ic.ic_delivered) return 'done';
+    if (ic.ic_installed || ic.ic_arrived) return 'inprogress';
+    return 'pending';
+  }
+
+  function statusLabel(s) {
+    if (s === 'done') return { text: 'منتهية', color: '#2ecc8a', bg: 'rgba(46,204,138,.12)', border: 'rgba(46,204,138,.3)' };
+    if (s === 'inprogress') return { text: 'جارية', color: '#e8a840', bg: 'rgba(232,168,64,.12)', border: 'rgba(232,168,64,.3)' };
+    return { text: 'قادمة', color: '#7880a0', bg: 'rgba(120,128,160,.12)', border: 'rgba(120,128,160,.3)' };
+  }
+
+  // Build page
+  const page = document.createElement('div');
+  page.style.cssText = 'direction:rtl;font-family:Cairo,sans-serif;padding:20px;max-width:1300px;margin:0 auto';
+
+  // Title + stats
+  const header = document.createElement('div');
+  header.style.cssText = 'margin-bottom:20px';
+  const pending = installOrders.filter(o=>getInstallStatus(o)==='pending').length;
+  const inprog  = installOrders.filter(o=>getInstallStatus(o)==='inprogress').length;
+  const done    = installOrders.filter(o=>getInstallStatus(o)==='done').length;
+  header.innerHTML =
+    '<div style="color:#e8a840;font-size:20px;font-weight:900;margin-bottom:14px">🔧 متابعة طلبات التركيب</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">' +
+      '<div style="background:rgba(120,128,160,.1);border:1px solid rgba(120,128,160,.3);border-radius:10px;padding:10px 20px;text-align:center"><div style="color:#7880a0;font-size:12px">قادمة</div><div style="color:#e8eaf0;font-size:22px;font-weight:900">'+pending+'</div></div>' +
+      '<div style="background:rgba(232,168,64,.1);border:1px solid rgba(232,168,64,.3);border-radius:10px;padding:10px 20px;text-align:center"><div style="color:#e8a840;font-size:12px">جارية</div><div style="color:#e8eaf0;font-size:22px;font-weight:900">'+inprog+'</div></div>' +
+      '<div style="background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.3);border-radius:10px;padding:10px 20px;text-align:center"><div style="color:#2ecc8a;font-size:12px">منتهية</div><div style="color:#e8eaf0;font-size:22px;font-weight:900">'+done+'</div></div>' +
+      '<div style="background:rgba(64,128,232,.1);border:1px solid rgba(64,128,232,.3);border-radius:10px;padding:10px 20px;text-align:center"><div style="color:#4080e8;font-size:12px">الإجمالي</div><div style="color:#e8eaf0;font-size:22px;font-weight:900">'+installOrders.length+'</div></div>' +
+    '</div>';
+
+  // Search + Filter bar
+  const filterBar = document.createElement('div');
+  filterBar.style.cssText = 'display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center';
+  filterBar.innerHTML =
+    '<input id="it_search" placeholder="🔍 بحث بالمصنع / المركّب / أمر القص..." style="flex:1;min-width:200px;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8eaf0;padding:10px 14px;font-family:Cairo,sans-serif;font-size:13px">' +
+    '<select id="it_filter" style="background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8eaf0;padding:10px 14px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer">' +
+      '<option value="">كل الحالات</option>' +
+      '<option value="pending">⏳ قادمة</option>' +
+      '<option value="inprogress">🔄 جارية</option>' +
+      '<option value="done">✅ منتهية</option>' +
+    '</select>';
+
+  // Table wrapper
+  const tableWrap = document.createElement('div');
+  tableWrap.id = 'it_tableWrap';
+  tableWrap.style.cssText = 'overflow-x:auto;border-radius:12px;border:1px solid #2a2f42';
+
+  function buildTable(filteredOrders) {
+    if (!filteredOrders.length) {
+      return '<div style="text-align:center;color:#7880a0;padding:40px;background:#161921">لا توجد نتائج</div>';
+    }
+    const rows = filteredOrders.map((o,i) => {
+      const st = getInstallStatus(o);
+      const sl = statusLabel(st);
+      const ic = o.installChecks || {};
+      const checks =
+        '<span style="font-size:13px" title="وصول المواد">' + (ic.ic_arrived?'✅':'⬜') + '</span>' +
+        '<span style="font-size:13px" title="تم التركيب">'  + (ic.ic_installed?'✅':'⬜') + '</span>' +
+        '<span style="font-size:13px" title="تم التسليم">'  + (ic.ic_delivered?'✅':'⬜') + '</span>';
+      const rowBg = i%2===0?'#161921':'#13151e';
+      return '<tr style="background:'+rowBg+';border-bottom:1px solid #1e2130">' +
+        '<td style="padding:11px 14px;white-space:nowrap;color:#e8a840;font-weight:900">' + (o.factory||'—') + '</td>' +
+        '<td style="padding:11px 14px;color:#e8eaf0">' + (o.order||'—') + '</td>' +
+        '<td style="padding:11px 14px;color:#e8a840">' + (o.quote||'—') + '</td>' +
+        '<td style="padding:11px 14px;color:#a0a8c0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (o.marble||'—') + '</td>' +
+        '<td style="padding:11px 14px;color:#e8eaf0">' + (o.installer||'—') + '</td>' +
+        '<td style="padding:11px 14px;color:#e8a840;font-weight:700">' + (o.installPrice?o.installPrice:'—') + '</td>' +
+        '<td style="padding:11px 14px;color:#7880a0">' + (o.installDate||'—') + '</td>' +
+        '<td style="padding:11px 14px;text-align:center">' +
+          '<span style="background:'+sl.bg+';color:'+sl.color+';border:1px solid '+sl.border+';border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;white-space:nowrap">' + sl.text + '</span>' +
+        '</td>' +
+        '<td style="padding:11px 14px;text-align:center;display:flex;gap:4px;justify-content:center">' + checks + '</td>' +
+        '<td style="padding:8px 10px;text-align:center">' +
+          '<button onclick="openInstallPage(''+o.id+'')" style="background:rgba(232,168,64,.15);color:#e8a840;border:1px solid rgba(232,168,64,.3);border-radius:7px;padding:5px 12px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer;white-space:nowrap">🔧 تفاصيل</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+
+    return '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+      '<thead><tr style="background:#1a1d2e;border-bottom:2px solid #2a2f42">' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">المصنع</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">أمر القص</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">عرض السعر</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">الرخام</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">المركّب</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">سعر التركيب</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:right;white-space:nowrap">تاريخ التركيب</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:center;white-space:nowrap">الحالة</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:center;white-space:nowrap">التقدم</th>' +
+        '<th style="padding:12px 14px;color:#7880a0;font-weight:700;text-align:center;white-space:nowrap">إجراء</th>' +
+      '</thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function applyFilter() {
+    const search = (document.getElementById('it_search').value||'').toLowerCase();
+    const filter = document.getElementById('it_filter').value;
+    let filtered = installOrders;
+    if (filter) filtered = filtered.filter(o => getInstallStatus(o) === filter);
+    if (search) filtered = filtered.filter(o =>
+      (o.factory||'').toLowerCase().includes(search) ||
+      (o.installer||'').toLowerCase().includes(search) ||
+      String(o.order||'').includes(search) ||
+      String(o.quote||'').includes(search)
+    );
+    document.getElementById('it_tableWrap').innerHTML = buildTable(filtered);
+  }
+
+  page.appendChild(header);
+  page.appendChild(filterBar);
+  page.appendChild(tableWrap);
+  container.innerHTML = '';
+  container.appendChild(page);
+  tableWrap.innerHTML = buildTable(installOrders);
+
+  document.getElementById('it_search').addEventListener('input', applyFilter);
+  document.getElementById('it_filter').addEventListener('change', applyFilter);
+}
+
+
 // ===== INSTALLATION PAGE =====
 window.openInstallPage = function(orderId) {
   const order = orders.find(o=>o.id===orderId);
@@ -1250,9 +1381,33 @@ window.openInstallPage = function(orderId) {
   }
 
   formCard.appendChild(makeInput('المركّب', 'ip_installer', 'text', order.installer, 'اسم المركّب أو الشركة'));
-  formCard.appendChild(makeInput('سعر التركيب', 'ip_price', 'number', order.installPrice, '0.00'));
-  // شامل المواد checkbox
-  formCard.appendChild(makeCheckRow('شامل المواد', 'ip_includes_materials', order.installIncludesMaterials));
+  
+  // Price + شامل المواد side by side
+  const priceRow = document.createElement('div');
+  priceRow.style.cssText = 'display:flex;gap:12px;align-items:flex-end';
+  const priceWrap = document.createElement('div');
+  priceWrap.style.cssText = 'flex:1';
+  const priceLabel = document.createElement('label');
+  priceLabel.style.cssText = 'color:#7880a0;font-size:13px;display:block;margin-bottom:5px';
+  priceLabel.textContent = 'سعر التركيب';
+  const priceInp = document.createElement('input');
+  priceInp.id = 'ip_price'; priceInp.type = 'number';
+  priceInp.value = order.installPrice||''; priceInp.placeholder = '0.00';
+  priceInp.style.cssText = 'width:100%;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8a840;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;font-weight:900;box-sizing:border-box';
+  priceWrap.appendChild(priceLabel); priceWrap.appendChild(priceInp);
+  
+  const matWrap = document.createElement('label');
+  matWrap.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;padding:11px 14px;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;white-space:nowrap;margin-bottom:0';
+  const matCb = document.createElement('input');
+  matCb.type='checkbox'; matCb.id='ip_includes_materials'; matCb.checked=!!order.installIncludesMaterials;
+  matCb.style.cssText='width:16px;height:16px;accent-color:#e8a840;cursor:pointer';
+  const matLbl = document.createElement('span');
+  matLbl.style.cssText='color:#e8eaf0;font-size:13px';
+  matLbl.textContent='شامل المواد';
+  matWrap.appendChild(matCb); matWrap.appendChild(matLbl);
+  
+  priceRow.appendChild(priceWrap); priceRow.appendChild(matWrap);
+  formCard.appendChild(priceRow);
   formCard.appendChild(makeInput('تاريخ التركيب', 'ip_date', 'date', order.installDate, ''));
   formCard.appendChild(makeInput('ملاحظات التركيب', 'ip_notes', 'textarea', order.installNotes, 'أي ملاحظات...'));
 
@@ -1810,7 +1965,8 @@ function showOrderAttachments(attachments, isDelivery) {
     const openBtn = document.createElement('button');
     openBtn.style.cssText = 'display:inline-flex;align-items:center;gap:3px;padding:3px 7px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
     openBtn.title = shortName;
-    openBtn.innerHTML = icon + ' <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50px">' + shortName + '</span>';
+    openBtn.innerHTML = '<span style="font-size:14px">' + icon + '</span>';
+    openBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#1e2130;border:none;font-size:14px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
     (function(k){ openBtn.onclick = function(){ openAttachment(window._attachMap[k]); }; })(key);
     item.appendChild(openBtn);
 
