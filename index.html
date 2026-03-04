@@ -778,8 +778,7 @@ function renderPage(factoryNames) {
                       style="width:18px;height:18px;cursor:pointer;accent-color:#e8a840"
                       title="يوجد تركيب">`
                   : o.installation ? '🔧' : '—'}
-                ${o.installation && isAdmin() ? `<button onclick="showInstallDetails('${o.id}')" title="تفاصيل التركيب"
-                  style="background:rgba(232,168,64,.15);color:#e8a840;border:1px solid rgba(232,168,64,.3);border-radius:6px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:4px">🔧</button>` : ''}
+
               </td>
               ${canEdit() ? `<td style="padding:6px 8px;white-space:nowrap;min-width:120px">
                 <div style="display:flex;gap:3px;align-items:center;flex-wrap:nowrap">
@@ -1170,64 +1169,7 @@ window.toggleInstallation = async function(id, checked) {
   } catch(e) { showNotif('خطأ: '+e.message,true); }
 };
 
-window.showInstallDetails = function(orderId) {
-  const order = orders.find(o=>o.id===orderId);
-  if (!order) return;
-  
-  const existing = document.getElementById('installModal');
-  if (existing) existing.remove();
-  
-  const modal = document.createElement('div');
-  modal.id = 'installModal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Cairo,sans-serif;direction:rtl';
-  modal.onclick = e => { if(e.target===modal) modal.remove(); };
-  
-  const box = document.createElement('div');
-  box.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:16px;padding:28px;width:100%;max-width:460px;display:flex;flex-direction:column;gap:16px';
-  
-  const title = document.createElement('div');
-  title.style.cssText = 'color:#e8a840;font-size:18px;font-weight:900;border-bottom:1px solid #2a2f42;padding-bottom:12px';
-  title.textContent = '🔧 تفاصيل التركيب';
-  
-  const installer = document.createElement('div');
-  installer.innerHTML = '<label style="color:#7880a0;font-size:13px;display:block;margin-bottom:6px">المركّب</label>' +
-    '<input id="installInstaller" value="'+(order.installer||'')+'" placeholder="اسم المركّب" style="width:100%;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8eaf0;padding:10px 14px;font-family:Cairo,sans-serif;font-size:13px;box-sizing:border-box">';
-  
-  const price = document.createElement('div');
-  price.innerHTML = '<label style="color:#7880a0;font-size:13px;display:block;margin-bottom:6px">سعر التركيب</label>' +
-    '<input id="installPrice" type="number" value="'+(order.installPrice||'')+'" placeholder="0.00" style="width:100%;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8eaf0;padding:10px 14px;font-family:Cairo,sans-serif;font-size:13px;box-sizing:border-box">';
-  
-  const btns = document.createElement('div');
-  btns.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;padding-top:8px;border-top:1px solid #2a2f42';
-  
-  const saveBtn = document.createElement('button');
-  saveBtn.style.cssText = 'background:#e8a840;color:#161921;border:none;border-radius:8px;padding:10px 24px;font-family:Cairo,sans-serif;font-size:14px;font-weight:900;cursor:pointer';
-  saveBtn.textContent = 'حفظ';
-  saveBtn.onclick = async function() {
-    const installer = document.getElementById('installInstaller').value.trim();
-    const installPrice = parseFloat(document.getElementById('installPrice').value) || 0;
-    try {
-      await updateDoc(doc(db,'orders',orderId), {installer, installPrice, updatedAt:serverTimestamp(), updatedBy:currentUser.uid});
-      await logActivity(orderId, 'update', 'تحديث تفاصيل التركيب — المركّب: ' + (installer||'—') + ' | السعر: ' + installPrice);
-      showNotif('تم حفظ تفاصيل التركيب ✅');
-      modal.remove();
-    } catch(e) { showNotif('خطأ: '+e.message,true); }
-  };
-  
-  const closeBtn = document.createElement('button');
-  closeBtn.style.cssText = 'background:#1e2130;color:#e8eaf0;border:1px solid #2a2f42;border-radius:8px;padding:10px 20px;font-family:Cairo,sans-serif;font-size:14px;cursor:pointer';
-  closeBtn.textContent = 'إغلاق';
-  closeBtn.onclick = () => modal.remove();
-  
-  btns.appendChild(saveBtn);
-  btns.appendChild(closeBtn);
-  box.appendChild(title);
-  box.appendChild(installer);
-  box.appendChild(price);
-  box.appendChild(btns);
-  modal.appendChild(box);
-  document.body.appendChild(modal);
-};
+
 
 
 // ===== INSTALLATION PAGE =====
@@ -1242,137 +1184,187 @@ window.openInstallPage = function(orderId) {
   page.id = 'installPage';
   page.style.cssText = 'position:fixed;inset:0;background:#0d0f14;z-index:2000;overflow-y:auto;font-family:Cairo,sans-serif;direction:rtl';
 
-  // Header
+  // ---- Header ----
   const header = document.createElement('div');
-  header.style.cssText = 'background:#161921;border-bottom:2px solid #e8a840;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10';
-  
-  const headerRight = document.createElement('div');
-  headerRight.style.cssText = 'display:flex;align-items:center;gap:12px';
-  
+  header.style.cssText = 'background:#161921;border-bottom:2px solid #e8a840;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10';
   const backBtn = document.createElement('button');
   backBtn.style.cssText = 'background:#1e2130;color:#e8eaf0;border:1px solid #2a2f42;border-radius:8px;padding:8px 16px;font-family:Cairo,sans-serif;font-size:14px;cursor:pointer';
   backBtn.textContent = '← رجوع';
   backBtn.onclick = function() { page.remove(); };
-  
-  const headerTitle = document.createElement('div');
-  headerTitle.innerHTML = '<div style="color:#e8a840;font-size:18px;font-weight:900">🔧 تفاصيل التركيب</div><div style="color:#7880a0;font-size:13px;margin-top:2px">' + (order.factory||'') + ' | أمر: ' + (order.order||'—') + ' | ' + (order.work||'') + '</div>';
-  
-  headerRight.appendChild(backBtn);
-  headerRight.appendChild(headerTitle);
-  
-  const statusBadge = document.createElement('div');
-  statusBadge.style.cssText = 'color:#2ecc8a;font-size:13px;background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.3);border-radius:20px;padding:4px 14px';
-  statusBadge.textContent = order.installation ? '🔧 يوجد تركيب' : '— لا يوجد تركيب';
-  
-  header.appendChild(headerRight);
-  header.appendChild(statusBadge);
+  const htitle = document.createElement('div');
+  htitle.innerHTML = '<div style="color:#e8a840;font-size:17px;font-weight:900">🔧 تفاصيل التركيب</div><div style="color:#7880a0;font-size:12px;margin-top:2px">' + (order.factory||'') + ' | أمر: ' + (order.order||'—') + '</div>';
+  const hright = document.createElement('div');
+  hright.style.cssText = 'display:flex;align-items:center;gap:12px';
+  hright.appendChild(backBtn);
+  hright.appendChild(htitle);
+  header.appendChild(hright);
 
-  // Body
+  // ---- Body ----
   const body = document.createElement('div');
-  body.style.cssText = 'max-width:700px;margin:32px auto;padding:0 24px;display:flex;flex-direction:column;gap:20px;padding-bottom:40px';
+  body.style.cssText = 'max-width:700px;margin:28px auto;padding:0 20px 60px;display:flex;flex-direction:column;gap:18px';
 
-  // Order summary card
-  const summaryCard = document.createElement('div');
-  summaryCard.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:16px;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px';
-  summaryCard.innerHTML = 
-    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:2px">المصنع</div><div style="color:#e8eaf0;font-weight:700">' + (order.factory||'—') + '</div></div>' +
-    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:2px">أمر القص</div><div style="color:#e8a840;font-weight:900">' + (order.order||'—') + '</div></div>' +
-    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:2px">عرض السعر</div><div style="color:#e8a840;font-weight:900">' + (order.quote||'—') + '</div></div>' +
-    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:2px">الرخام</div><div style="color:#e8eaf0">' + (order.marble||'—') + '</div></div>' +
-    '<div style="grid-column:1/-1"><div style="color:#7880a0;font-size:11px;margin-bottom:2px">العمل</div><div style="color:#e8eaf0">' + (order.work||'—') + '</div></div>';
+  // ---- Summary Card ----
+  const sumCard = document.createElement('div');
+  sumCard.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:14px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px';
+  sumCard.innerHTML =
+    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:3px">المصنع (الورشة)</div><div style="color:#e8eaf0;font-weight:700;font-size:15px">' + (order.factory||'—') + '</div></div>' +
+    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:3px">أمر القص</div><div style="color:#e8a840;font-weight:900;font-size:15px">' + (order.order||'—') + '</div></div>' +
+    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:3px">عرض السعر</div><div style="color:#e8a840;font-weight:900;font-size:15px">' + (order.quote||'—') + '</div></div>' +
+    '<div><div style="color:#7880a0;font-size:11px;margin-bottom:3px">نوع الرخام</div><div style="color:#e8eaf0;font-size:14px">' + (order.marble||'—') + '</div></div>';
 
-  // Installation form card
+  // ---- Install Details Form ----
   const formCard = document.createElement('div');
-  formCard.style.cssText = 'background:#161921;border:1px solid #e8a840;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px';
-  
+  formCard.style.cssText = 'background:#161921;border:1px solid #e8a840;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px';
   const formTitle = document.createElement('div');
-  formTitle.style.cssText = 'color:#e8a840;font-size:16px;font-weight:900;border-bottom:1px solid #2a2f42;padding-bottom:12px';
+  formTitle.style.cssText = 'color:#e8a840;font-size:15px;font-weight:900;padding-bottom:10px;border-bottom:1px solid #2a2f42';
   formTitle.textContent = 'بيانات التركيب';
   formCard.appendChild(formTitle);
 
-  // Field helper
-  function makeField(labelText, inputId, type, value, placeholder) {
-    const wrap = document.createElement('div');
-    const lbl = document.createElement('label');
-    lbl.style.cssText = 'color:#7880a0;font-size:13px;display:block;margin-bottom:6px';
-    lbl.textContent = labelText;
-    const inp = document.createElement(type === 'textarea' ? 'textarea' : 'input');
-    inp.id = inputId;
+  function makeInput(label, id, type, val, placeholder) {
+    const w = document.createElement('div');
+    const l = document.createElement('label');
+    l.style.cssText = 'color:#7880a0;font-size:13px;display:block;margin-bottom:5px';
+    l.textContent = label;
+    const inp = document.createElement(type==='textarea'?'textarea':'input');
+    inp.id = id;
     if (type !== 'textarea') inp.type = type;
-    inp.value = value || '';
-    inp.placeholder = placeholder || '';
-    inp.style.cssText = 'width:100%;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8eaf0;padding:12px 14px;font-family:Cairo,sans-serif;font-size:14px;box-sizing:border-box' + (type === 'textarea' ? ';resize:vertical' : '');
-    if (type === 'textarea') inp.rows = 3;
-    wrap.appendChild(lbl);
-    wrap.appendChild(inp);
-    return wrap;
+    inp.value = val||'';
+    if (placeholder) inp.placeholder = placeholder;
+    inp.style.cssText = 'width:100%;background:#1e2130;border:1px solid #2a2f42;border-radius:8px;color:#e8eaf0;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;box-sizing:border-box' + (type==='textarea'?';resize:vertical':'');
+    if (type==='textarea') inp.rows = 3;
+    w.appendChild(l); w.appendChild(inp);
+    return w;
   }
 
-  formCard.appendChild(makeField('المركّب', 'ip_installer', 'text', order.installer, 'اسم المركّب أو الشركة'));
-  formCard.appendChild(makeField('سعر التركيب', 'ip_price', 'number', order.installPrice, '0.00'));
-  formCard.appendChild(makeField('تاريخ التركيب', 'ip_date', 'date', order.installDate, ''));
-  formCard.appendChild(makeField('ملاحظات التركيب', 'ip_notes', 'textarea', order.installNotes, 'أي ملاحظات...'));
-
-  // Installation done checklist
-  const checklistCard = document.createElement('div');
-  checklistCard.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px';
-  
-  const checkTitle = document.createElement('div');
-  checkTitle.style.cssText = 'color:#e8eaf0;font-size:15px;font-weight:700;border-bottom:1px solid #2a2f42;padding-bottom:10px';
-  checkTitle.textContent = '✅ قائمة إتمام التركيب';
-  checklistCard.appendChild(checkTitle);
-
-  const checks = [
-    {id:'ic_arrived', label:'وصول المواد للموقع', key:'ic_arrived'},
-    {id:'ic_installed', label:'تم التركيب', key:'ic_installed'},
-    {id:'ic_inspected', label:'تم الفحص والمراجعة', key:'ic_inspected'},
-    {id:'ic_delivered', label:'تم التسليم للعميل', key:'ic_delivered'},
-  ];
-  
-  checks.forEach(c => {
+  function makeCheckRow(label, id, checked) {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:12px;cursor:pointer;padding:10px 14px;background:#1e2130;border-radius:10px;border:1px solid #2a2f42';
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;background:#1e2130;border-radius:10px;border:1px solid #2a2f42';
     const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.id = c.id;
-    cb.checked = !!(order.installChecks && order.installChecks[c.key]);
-    cb.style.cssText = 'width:18px;height:18px;accent-color:#2ecc8a;cursor:pointer;flex-shrink:0';
-    const lbl = document.createElement('span');
-    lbl.style.cssText = 'color:#e8eaf0;font-size:14px;flex:1';
-    lbl.textContent = c.label;
-    row.appendChild(cb);
-    row.appendChild(lbl);
-    checklistCard.appendChild(row);
-  });
+    cb.type = 'checkbox'; cb.id = id; cb.checked = !!checked;
+    cb.style.cssText = 'width:18px;height:18px;accent-color:#e8a840;cursor:pointer;flex-shrink:0';
+    const sp = document.createElement('span');
+    sp.style.cssText = 'color:#e8eaf0;font-size:14px';
+    sp.textContent = label;
+    row.appendChild(cb); row.appendChild(sp);
+    return row;
+  }
 
-  // Save button
+  formCard.appendChild(makeInput('المركّب', 'ip_installer', 'text', order.installer, 'اسم المركّب أو الشركة'));
+  formCard.appendChild(makeInput('سعر التركيب', 'ip_price', 'number', order.installPrice, '0.00'));
+  // شامل المواد checkbox
+  formCard.appendChild(makeCheckRow('شامل المواد', 'ip_includes_materials', order.installIncludesMaterials));
+  formCard.appendChild(makeInput('تاريخ التركيب', 'ip_date', 'date', order.installDate, ''));
+  formCard.appendChild(makeInput('ملاحظات التركيب', 'ip_notes', 'textarea', order.installNotes, 'أي ملاحظات...'));
+
+  // ---- Checklist Card ----
+  const clCard = document.createElement('div');
+  clCard.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:10px';
+  const clTitle = document.createElement('div');
+  clTitle.style.cssText = 'color:#e8eaf0;font-size:15px;font-weight:700;padding-bottom:10px;border-bottom:1px solid #2a2f42';
+  clTitle.textContent = '✅ قائمة إتمام التركيب';
+  clCard.appendChild(clTitle);
+
+  const ic = order.installChecks || {};
+
+  // 1. وصول المواد
+  clCard.appendChild(makeCheckRow('وصول المواد للموقع', 'ic_arrived', ic.ic_arrived));
+
+  // مرفقات وصول المواد
+  const arrivedAttachSection = makeAttachSection('attach_arrived', order.installAttachArrived||[], orderId, 'installAttachArrived');
+  clCard.appendChild(arrivedAttachSection);
+
+  // 2. تم التركيب
+  clCard.appendChild(makeCheckRow('تم التركيب', 'ic_installed', ic.ic_installed));
+
+  // مرفقات التركيب
+  const installedAttachSection = makeAttachSection('attach_installed', order.installAttachInstalled||[], orderId, 'installAttachInstalled');
+  clCard.appendChild(installedAttachSection);
+
+  // 3. تم التسليم للعميل
+  clCard.appendChild(makeCheckRow('تم التسليم للعميل', 'ic_delivered', ic.ic_delivered));
+
+  // ---- Save Button ----
   const saveBtn = document.createElement('button');
   saveBtn.style.cssText = 'background:#e8a840;color:#161921;border:none;border-radius:10px;padding:14px;font-family:Cairo,sans-serif;font-size:15px;font-weight:900;cursor:pointer;width:100%';
-  saveBtn.textContent = 'حفظ تفاصيل التركيب';
+  saveBtn.textContent = '💾 حفظ تفاصيل التركيب';
   saveBtn.onclick = async function() {
     const installer = document.getElementById('ip_installer').value.trim();
-    const installPrice = parseFloat(document.getElementById('ip_price').value) || 0;
+    const installPrice = parseFloat(document.getElementById('ip_price').value)||0;
+    const installIncludesMaterials = document.getElementById('ip_includes_materials').checked;
     const installDate = document.getElementById('ip_date').value;
     const installNotes = document.getElementById('ip_notes').value.trim();
-    const installChecks = {};
-    checks.forEach(c => { installChecks[c.key] = document.getElementById(c.id).checked; });
+    const installChecks = {
+      ic_arrived: document.getElementById('ic_arrived').checked,
+      ic_installed: document.getElementById('ic_installed').checked,
+      ic_delivered: document.getElementById('ic_delivered').checked,
+    };
     try {
-      await updateDoc(doc(db,'orders',orderId), {installer, installPrice, installDate, installNotes, installChecks, updatedAt:serverTimestamp(), updatedBy:currentUser.uid});
-      await logActivity(orderId, 'update', 'تحديث تفاصيل التركيب — المركّب: ' + (installer||'—') + ' | السعر: ' + installPrice + ' | تاريخ: ' + (installDate||'—'));
-      showNotif('تم حفظ تفاصيل التركيب');
+      await updateDoc(doc(db,'orders',orderId), {
+        installer, installPrice, installIncludesMaterials, installDate, installNotes, installChecks,
+        updatedAt:serverTimestamp(), updatedBy:currentUser.uid
+      });
+      await logActivity(orderId, 'update', 'تحديث تفاصيل التركيب — المركّب: '+(installer||'—')+' | السعر: '+installPrice+(installIncludesMaterials?' (شامل المواد)':''));
+      showNotif('تم حفظ تفاصيل التركيب ✅');
       saveBtn.textContent = '✅ تم الحفظ';
-      setTimeout(function() { saveBtn.textContent = 'حفظ تفاصيل التركيب'; }, 2000);
-    } catch(e) { showNotif('خطأ: ' + e.message, true); }
+      setTimeout(function(){saveBtn.textContent='💾 حفظ تفاصيل التركيب';},2000);
+    } catch(e){ showNotif('خطأ: '+e.message,true); }
   };
 
-  body.appendChild(summaryCard);
+  body.appendChild(sumCard);
   body.appendChild(formCard);
-  body.appendChild(checklistCard);
+  body.appendChild(clCard);
   body.appendChild(saveBtn);
   page.appendChild(header);
   page.appendChild(body);
   document.body.appendChild(page);
 };
+
+function makeAttachSection(sectionId, attachments, orderId, field) {
+  if (!window._attachMap) window._attachMap = {};
+  const wrap = document.createElement('div');
+  wrap.id = sectionId;
+  wrap.style.cssText = 'margin-right:28px;padding:10px;background:#12141c;border-radius:8px;border:1px dashed #2a2f42;display:flex;flex-wrap:wrap;gap:6px;align-items:center';
+
+  attachments.forEach(function(a) {
+    const url = a.url||a.data||'';
+    const isPdf = (a.name||'').toLowerCase().endsWith('.pdf')||(a.type||'').includes('pdf');
+    const icon = isPdf?'📄':'🖼️';
+    const key = 'ia_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    window._attachMap[key] = url;
+    const btn = document.createElement('div');
+    btn.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
+    btn.innerHTML = '<button onclick="openAttachment(window._attachMap[''+key+''])" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif">'+icon+' <span style="font-size:10px;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a.name||'ملف').substring(0,15)+'</span></button>';
+    wrap.appendChild(btn);
+  });
+
+  // + upload button
+  const ulabel = document.createElement('label');
+  ulabel.style.cssText = 'cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(64,128,232,.15);border:1px dashed #4080e8;border-radius:7px;font-size:14px;color:#4080e8;flex-shrink:0';
+  ulabel.title = 'رفع مرفق';
+  const uinput = document.createElement('input');
+  uinput.type='file'; uinput.accept='image/*,.pdf'; uinput.multiple=true;
+  uinput.style.cssText='display:none';
+  uinput.onchange = async function(e) {
+    const files = e.target.files;
+    if (!files||!files.length) return;
+    showNotif('جاري الرفع... ⏳');
+    const order = orders.find(o=>o.id===orderId);
+    const existing = (order&&order[field])||[];
+    const newFiles = [];
+    for (const f of files) {
+      try { newFiles.push(await uploadToCloudinary(f)); } catch(err){ showNotif('فشل: '+f.name,true); }
+    }
+    if (newFiles.length) {
+      await updateDoc(doc(db,'orders',orderId),{[field]:[...existing,...newFiles],updatedAt:serverTimestamp(),updatedBy:currentUser.uid});
+      await logActivity(orderId,'attachment','تم رفع '+newFiles.length+' مرفق في '+field);
+      showNotif('تم الرفع ✅');
+    }
+  };
+  ulabel.appendChild(uinput);
+  ulabel.innerHTML += '+';
+  wrap.appendChild(ulabel);
+  return wrap;
+}
 
 
 // ===== ACTIVITY LOG =====
@@ -1769,37 +1761,68 @@ function previewFiles() {
   });
 }
 
-function showOrderAttachments(attachments, isDelivery=false) {
+function showOrderAttachments(attachments, isDelivery) {
+  isDelivery = isDelivery || false;
   if (!window._attachMap) window._attachMap = {};
-  
-  // Upload button - show for both attachments and delivery notes
-  const uploadBtn = canEdit() ? '<label style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(64,128,232,.15);border:1px dashed #4080e8;border-radius:8px;font-size:14px;color:#4080e8;flex-shrink:0" title="رفع ملف جديد">' +
-    (isDelivery
-      ? '<input type="file" accept="image/*,.pdf" style="display:none" onchange="uploadDeliveryNote(event,this)">+'
-      : '<input type="file" accept="image/*,.pdf" multiple style="display:none" onchange="uploadAttachmentDirect(event,this)">+') +
-    '</label>' : '';
 
-  if(!attachments || attachments.length===0) {
-    return '<div style="display:flex;gap:4px;align-items:center">' + (uploadBtn||'—') + '</div>';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center';
+
+  function makeUploadBtn() {
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(64,128,232,.15);border:1px dashed #4080e8;border-radius:7px;font-size:15px;color:#4080e8;flex-shrink:0';
+    lbl.title = 'رفع ملف';
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*,.pdf';
+    if (!isDelivery) inp.multiple = true;
+    inp.style.display = 'none';
+    if (isDelivery) {
+      inp.onchange = function(e){ uploadDeliveryNote(e, inp); };
+    } else {
+      inp.onchange = function(e){ uploadAttachmentDirect(e, inp); };
+    }
+    lbl.appendChild(inp);
+    lbl.appendChild(document.createTextNode('+'));
+    return lbl;
   }
 
-  const items = attachments.map((a) => {
+  if (!attachments || attachments.length === 0) {
+    if (canEdit()) wrap.appendChild(makeUploadBtn());
+    else wrap.appendChild(document.createTextNode('—'));
+    return wrap.outerHTML;
+  }
+
+  attachments.forEach(function(a) {
     const url = a.url || a.data || '';
     const isPdf = (a.name||'').toLowerCase().endsWith('.pdf') || (a.type||'').includes('pdf');
     const icon = isPdf ? '📄' : '🖼️';
-    const shortName = (a.name||'ملف').replace(/'/g,'').substring(0,15);
+    const shortName = (a.name||'ملف').substring(0,15);
     const key = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     window._attachMap[key] = url;
-    return '<div style="display:inline-flex;align-items:center;border-radius:8px;overflow:hidden;border:1px solid #2a2f42;margin-bottom:2px">' +
-      '<button onclick="openAttachment(window._attachMap['' + key + ''])" title="' + shortName + '" ' +
-      'style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif">' +
-      icon + ' <span style="font-size:10px;max-width:45px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + shortName + '</span></button>' +
-      (canEdit() ? '<button onclick="deleteAttachment(this,'' + key + '',' + isDelivery + ')" title="حذف" ' +
-      'style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:24px;background:rgba(232,64,64,.15);border:none;border-right:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040">✕</button>' : '') +
-      '</div>';
-  }).join('');
 
-  return '<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">' + items + (uploadBtn||'') + '</div>';
+    const item = document.createElement('div');
+    item.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
+
+    const openBtn = document.createElement('button');
+    openBtn.style.cssText = 'display:inline-flex;align-items:center;gap:3px;padding:3px 7px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
+    openBtn.title = shortName;
+    openBtn.innerHTML = icon + ' <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50px">' + shortName + '</span>';
+    (function(k){ openBtn.onclick = function(){ openAttachment(window._attachMap[k]); }; })(key);
+    item.appendChild(openBtn);
+
+    if (canEdit()) {
+      const delBtn = document.createElement('button');
+      delBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:24px;background:rgba(232,64,64,.15);border:none;border-right:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040';
+      delBtn.title = 'حذف';
+      delBtn.textContent = '✕';
+      (function(k,d){ delBtn.onclick = function(){ deleteAttachment(delBtn, k, d); }; })(key, isDelivery);
+      item.appendChild(delBtn);
+    }
+    wrap.appendChild(item);
+  });
+
+  if (canEdit()) wrap.appendChild(makeUploadBtn());
+  return wrap.outerHTML;
 }
 
 
