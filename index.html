@@ -1333,7 +1333,11 @@ function makeAttachSection(sectionId, attachments, orderId, field) {
     window._attachMap[key] = url;
     const btn = document.createElement('div');
     btn.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
-    btn.innerHTML = '<button onclick="openAttachment(window._attachMap[''+key+''])" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif">'+icon+' <span style="font-size:10px;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a.name||'ملف').substring(0,15)+'</span></button>';
+    const openBtnI = document.createElement('button');
+    openBtnI.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
+    openBtnI.innerHTML = icon + ' <span style="font-size:10px;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (a.name||'ملف').substring(0,15) + '</span>';
+    (function(k){ openBtnI.onclick = function(){ openAttachment(window._attachMap[k]); }; })(key);
+    btn.appendChild(openBtnI);
     wrap.appendChild(btn);
   });
 
