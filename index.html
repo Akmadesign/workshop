@@ -733,7 +733,7 @@ function renderPage(factoryNames) {
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead>
           <tr style="background:#1a1d2e">
-            ${['#','المصنع','عرض السعر','أمر القص','تاريخ الاستلام','العمل','الرخام','تاريخ التسليم','الحالة','التأخير','مرفقات','تم التحميل','الوجهة','دليفري نوت', canEdit()?'🔧 تركيب':'', canEdit()?'إجراءات':''].map(h=>`<th style="padding:14px 16px;text-align:right;color:#7880a0;font-weight:700;font-size:13px;border-bottom:2px solid #2a2f42;white-space:nowrap">${h}</th>`).join('')}
+            ${['#','المصنع','عرض السعر','أمر القص','تاريخ الاستلام','العمل','الرخام','تاريخ التسليم','الحالة','التأخير','مرفقات','تم التحميل','الوجهة','دليفري نوت', ...(canEdit()?['🔧 تركيب','إجراءات']:[])].map(h=>`<th style="padding:14px 16px;text-align:right;color:#7880a0;font-weight:700;font-size:13px;border-bottom:2px solid #2a2f42;white-space:nowrap">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -1475,25 +1475,50 @@ window.openInstallPage = function(orderId) {
 };
 
 function makeAttachSection(sectionId, attachments, orderId, field) {
-  if (!window._attachMap) window._attachMap = {};
   const wrap = document.createElement('div');
   wrap.id = sectionId;
   wrap.style.cssText = 'margin-right:28px;padding:10px;background:#12141c;border-radius:8px;border:1px dashed #2a2f42;display:flex;flex-wrap:wrap;gap:6px;align-items:center';
 
   attachments.forEach(function(a) {
-    const url = a.url||a.data||'';
-    const isPdf = (a.name||'').toLowerCase().endsWith('.pdf')||(a.type||'').includes('pdf');
-    const icon = isPdf?'📄':'🖼️';
-    const key = 'ia_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    window._attachMap[key] = url;
-    const btn = document.createElement('div');
-    btn.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
-    const openBtnI = document.createElement('button');
-    openBtnI.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
-    openBtnI.innerHTML = icon + ' <span style="font-size:10px;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (a.name||'ملف').substring(0,15) + '</span>';
-    (function(k){ openBtnI.onclick = function(){ openAttachment(window._attachMap[k]); }; })(key);
-    btn.appendChild(openBtnI);
-    wrap.appendChild(btn);
+    const url = a.url || a.data || '';
+    if (!url) return;
+    const isPdf = (a.name||'').toLowerCase().endsWith('.pdf') || (a.type||'').includes('pdf');
+    const icon = isPdf ? '📄' : '🖼️';
+    const name = (a.name||'ملف').substring(0,20);
+
+    const item = document.createElement('div');
+    item.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
+
+    // delete btn
+    const delBtn = document.createElement('button');
+    delBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:26px;background:rgba(232,64,64,.12);border:none;border-left:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040';
+    delBtn.title = 'حذف';
+    delBtn.textContent = '✕';
+    (function(u,f,oid){
+      delBtn.onclick = async function() {
+        if(!confirm('حذف هذا المرفق؟')) return;
+        const order = orders.find(o=>o.id===oid);
+        if(!order) return;
+        const updated = (order[f]||[]).filter(x=>(x.url||x.data)!==u);
+        try {
+          await updateDoc(doc(db,'orders',oid),{[f]:updated,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});
+          await logActivity(oid,'attachment','تم حذف مرفق من '+f);
+          showNotif('تم الحذف ✅');
+          item.remove();
+        } catch(e){ showNotif('خطأ: '+e.message,true); }
+      };
+    })(url, field, orderId);
+    item.appendChild(delBtn);
+
+    // open btn - URL stored in closure directly
+    const openBtn = document.createElement('button');
+    openBtn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 10px;height:26px;background:#1e2130;border:none;font-size:13px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
+    openBtn.title = name;
+    openBtn.innerHTML = icon + ' <span style="font-size:11px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + name + '</span>';
+    (function(u){ openBtn.onclick = function(){ openAttachment(u); }; })(url);
+    item.appendChild(openBtn);
+
+    wrap.appendChild(item);
   });
 
   // + upload button
@@ -1517,10 +1542,14 @@ function makeAttachSection(sectionId, attachments, orderId, field) {
       await updateDoc(doc(db,'orders',orderId),{[field]:[...existing,...newFiles],updatedAt:serverTimestamp(),updatedBy:currentUser.uid});
       await logActivity(orderId,'attachment','تم رفع '+newFiles.length+' مرفق في '+field);
       showNotif('تم الرفع ✅');
+      // refresh page
+      openInstallPage(orderId);
     }
   };
   ulabel.appendChild(uinput);
-  ulabel.innerHTML += '+';
+  const plusSpan = document.createElement('span');
+  plusSpan.textContent = '+';
+  ulabel.appendChild(plusSpan);
   wrap.appendChild(ulabel);
   return wrap;
 }
@@ -1927,89 +1956,55 @@ function previewFiles() {
 
 function showOrderAttachments(attachments, isDelivery) {
   isDelivery = isDelivery || false;
-
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center';
-
-  function makeUploadBtn() {
-    const lbl = document.createElement('label');
-    lbl.style.cssText = 'cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(64,128,232,.15);border:1px dashed #4080e8;border-radius:7px;font-size:15px;color:#4080e8;flex-shrink:0';
-    lbl.title = 'رفع ملف';
-    const inp = document.createElement('input');
-    inp.type = 'file'; inp.accept = 'image/*,.pdf';
-    if (!isDelivery) inp.multiple = true;
-    inp.style.display = 'none';
-    if (isDelivery) {
-      inp.onchange = function(e){ uploadDeliveryNote(e, inp); };
-    } else {
-      inp.onchange = function(e){ uploadAttachmentDirect(e, inp); };
-    }
-    lbl.appendChild(inp);
-    lbl.appendChild(document.createTextNode('+'));
-    return lbl;
-  }
+  var dlv = isDelivery ? '1' : '0';
 
   if (!attachments || attachments.length === 0) {
-    if (canEdit()) wrap.appendChild(makeUploadBtn());
-    else wrap.appendChild(document.createTextNode('—'));
-    return wrap.outerHTML;
+    if (!canEdit()) return '<span style="color:#4a4f65">—</span>';
+    return '<label style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(64,128,232,.15);border:1px dashed #4080e8;border-radius:7px;font-size:15px;color:#4080e8">'
+      + '<input type="file" accept="image/*,.pdf"' + (isDelivery?'':' multiple') + ' style="display:none" onchange="' + (isDelivery?'uploadDeliveryNote':'uploadAttachmentDirect') + '(event,this)">'
+      + '+</label>';
   }
 
-  attachments.forEach(function(a) {
-    // Support both new {url,name,type} and old {data,name} formats
-    const url = a.url || a.data || '';
-    if (!url) return;
-    const isPdf = (a.name||'').toLowerCase().endsWith('.pdf') || (a.type||'').includes('pdf');
-    const icon = isPdf ? '📄' : '🖼️';
-    const shortName = (a.name||'ملف').substring(0,20);
-
-    const item = document.createElement('div');
-    item.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
-
-    const openBtn = document.createElement('button');
-    openBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1e2130;border:none;font-size:15px;cursor:pointer;color:#c8d0e8';
-    openBtn.title = shortName;
-    openBtn.textContent = icon;
-    // Store URL directly - no map dependency
-    var attachUrl = url;
-    openBtn.onclick = function(e) {
-      e.stopPropagation();
-      openAttachment(attachUrl);
-    };
-    item.appendChild(openBtn);
-
+  var html = '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">';
+  for (var i=0; i<attachments.length; i++) {
+    var a = attachments[i];
+    var url = a.url || a.data || '';
+    if (!url) continue;
+    var isPdf = (a.name||'').toLowerCase().endsWith('.pdf') || (a.type||'').includes('pdf');
+    var icon = isPdf ? '📄' : '🖼️';
+    var safeUrl = url.replace(/"/g,'&quot;');
+    var safeName = (a.name||'ملف').replace(/"/g,'').substring(0,25);
+    html += '<div style="display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42">';
     if (canEdit()) {
-      const delBtn = document.createElement('button');
-      delBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:26px;background:rgba(232,64,64,.12);border:none;border-right:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040';
-      delBtn.title = 'حذف';
-      delBtn.textContent = '✕';
-      var delUrl = url;
-      var delIsDelivery = isDelivery;
-      delBtn.onclick = function(e) {
-        e.stopPropagation();
-        deleteAttachmentByUrl(delBtn, delUrl, delIsDelivery);
-      };
-      item.insertBefore(delBtn, openBtn);
+      var safeUrlSQ = url.replace(/'/g, "\'");
+      html += '<button onclick="deleteAttachmentByUrl(this,\'' + safeUrlSQ + '\',' + isDelivery + ')" title="حذف" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:26px;background:rgba(232,64,64,.12);border:none;border-left:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040">✕</button>';
     }
-    wrap.appendChild(item);
-  });
-
-  if (canEdit()) wrap.appendChild(makeUploadBtn());
-  return wrap.outerHTML;
+    html += '<button onclick="openAttachment(\'' + safeUrlSQ + '\')" title="' + safeName + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1e2130;border:none;font-size:15px;cursor:pointer">' + icon + '</button>';
+    html += '</div>';
+  }
+  if (canEdit()) {
+    html += '<label style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(64,128,232,.15);border:1px dashed #4080e8;border-radius:7px;font-size:15px;color:#4080e8">'
+      + '<input type="file" accept="image/*,.pdf"' + (isDelivery?'':' multiple') + ' style="display:none" onchange="' + (isDelivery?'uploadDeliveryNote':'uploadAttachmentDirect') + '(event,this)">'
+      + '+</label>';
+  }
+  html += '</div>';
+  return html;
 }
 
 
 window.openAttachment = function(url) {
   if (!url) return;
-  const isPdf = url.toLowerCase().includes('.pdf') || url.startsWith('data:application/pdf');
+  // Decode any HTML entities
+  var decoded = url.replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+  var isPdf = decoded.toLowerCase().includes('.pdf') || decoded.startsWith('data:application/pdf');
   if (isPdf) {
-    if (url.startsWith('data:')) {
-      showPDFViewer(url); // old base64 files
+    if (decoded.startsWith('data:')) {
+      showPDFViewer(decoded);
     } else {
-      window.open(url, '_blank'); // Supabase public URL - opens directly
+      window.open(decoded, '_blank');
     }
   } else {
-    window.open(url, '_blank');
+    window.open(decoded, '_blank');
   }
 };
 
