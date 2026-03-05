@@ -306,6 +306,11 @@ async function startApp() {
   });
 
   showApp();
+  // Init notifications after app loads
+  setTimeout(() => {
+    initNotifications();
+    startUsersNotifListener();
+  }, 1500);
 }
 
 // ===== HELPERS =====
@@ -523,6 +528,7 @@ function render() {
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="color:#7880a0;font-size:13px">${roleLabel} — ${currentUserData?.name||currentUser?.email}</span>
       ${canEdit() ? `<button onclick="openAddOrderModal()" style="background:#e8a840;color:#000;border:none;border-radius:8px;padding:10px 18px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:700;cursor:pointer">+ إضافة طلب</button>` : ''}
+      ${isAdmin() ? `<button onclick="window._testNotif()" title="اختبار الإشعارات" style="background:#1e2130;color:#4080e8;border:1px solid #2a2f42;border-radius:8px;padding:10px 12px;font-size:16px;cursor:pointer">🔔</button>` : ''}
       <button onclick="doLogout()" style="background:#1e2130;color:#7880a0;border:1px solid #2a2f42;border-radius:8px;padding:10px 14px;font-family:'Cairo',sans-serif;font-size:13px;cursor:pointer">خروج</button>
     </div>
   </header>
@@ -2542,6 +2548,21 @@ function startUsersNotifListener() {
   });
 }
 
+
+// ── Test notification (admin only) ──
+window._testNotif = async function() {
+  _notifPermission = Notification?.permission || 'default';
+  if (_notifPermission !== 'granted') {
+    const r = await Notification.requestPermission();
+    _notifPermission = r;
+    if (r !== 'granted') { showNotif('لم يتم منح الإذن للإشعارات', true); return; }
+  }
+  // Show a test browser notification
+  showBrowserNotif('🔔 اختبار الإشعارات', 'الإشعارات تعمل بشكل صحيح ✅', 'test');
+  showNotif('تم إرسال إشعار تجريبي 🔔');
+  // Also push to Firestore so all users get it
+  await pushNotif('test', '🔔 اختبار', 'الإشعارات تعمل ✅', ['admin','editor']);
+};
 </script>
 
 <style>
