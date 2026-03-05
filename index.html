@@ -2445,10 +2445,14 @@ function checkLateOrders() {
 
 // ── Ask permission UI ──
 function showNotifPermissionBanner() {
-  if (localStorage.getItem('notif_asked')) return;
+  // Don't show if already decided
   if (_notifPermission === 'granted' || _notifPermission === 'denied') return;
+  // Don't show if user dismissed before (but allow if never shown)
+  if (localStorage.getItem('notif_dismissed')) return;
   const role = currentUserData?.role;
   if (role === 'viewer') return;
+  // Only show if Notification API exists
+  if (!('Notification' in window)) return;
 
   setTimeout(() => {
     if (document.getElementById('notif-perm-banner')) return;
@@ -2482,7 +2486,7 @@ function showNotifPermissionBanner() {
             </button>
           </div>
         </div>
-        <button onclick="localStorage.setItem('notif_asked','1');this.closest('#notif-perm-banner').remove()"
+        <button onclick="localStorage.setItem('notif_dismissed','1');this.closest('#notif-perm-banner').remove()"
           style="background:none;border:none;color:#4a4f65;font-size:20px;cursor:pointer;padding:0;line-height:1;margin-top:-2px">×</button>
       </div>
     `;
@@ -2490,14 +2494,15 @@ function showNotifPermissionBanner() {
     document.body.appendChild(banner);
 
     document.getElementById('notifYesBtn').onclick = async () => {
-      localStorage.setItem('notif_asked', '1');
       banner.remove();
       const result = await Notification.requestPermission();
       _notifPermission = result;
       if (result === 'granted') {
+        localStorage.removeItem('notif_dismissed');
         showNotif('تم تفعيل الإشعارات 🔔');
         checkLateOrders();
       } else {
+        localStorage.setItem('notif_dismissed', '1');
         showNotif('لم يتم تفعيل الإشعارات', true);
       }
     };
@@ -2551,17 +2556,43 @@ function startUsersNotifListener() {
 
 // ── Test notification (admin only) ──
 window._testNotif = async function() {
-  _notifPermission = Notification?.permission || 'default';
+  if (!('Notification' in window)) {
+    showNotif('المتصفح لا يدعم الإشعارات — جرب من الشاشة الرئيسية (PWA)', true);
+    return;
+  }
+  _notifPermission = Notification.permission;
+
+  if (_notifPermission === 'denied') {
+    showNotif('الإشعارات محظورة — فعّلها من إعدادات المتصفح ثم أعد المحاولة', true);
+    return;
+  }
+
   if (_notifPermission !== 'granted') {
+    // Ask permission directly
     const r = await Notification.requestPermission();
     _notifPermission = r;
-    if (r !== 'granted') { showNotif('لم يتم منح الإذن للإشعارات', true); return; }
+    if (r !== 'granted') {
+      showNotif('لم يتم السماح بالإشعارات', true);
+      return;
+    }
+    showNotif('تم تفعيل الإشعارات ✅');
   }
-  // Show a test browser notification
-  showBrowserNotif('🔔 اختبار الإشعارات', 'الإشعارات تعمل بشكل صحيح ✅', 'test');
-  showNotif('تم إرسال إشعار تجريبي 🔔');
-  // Also push to Firestore so all users get it
-  await pushNotif('test', '🔔 اختبار', 'الإشعارات تعمل ✅', ['admin','editor']);
+
+  // Send test notification
+  try {
+    new Notification('🔔 اختبار ورشة القص', {
+      body: 'الإشعارات تعمل بشكل صحيح ✅',
+      dir: 'rtl',
+      lang: 'ar',
+      tag: 'test_' + Date.now()
+    });
+    showNotif('تم إرسال إشعار تجريبي 🔔');
+  } catch(e) {
+    showNotif('خطأ: ' + e.message, true);
+  }
+
+  // Push to Firestore so all admins/editors get it too
+  await pushNotif('test', '🔔 اختبار', 'الإشعارات تعمل ✅', ['admin', 'editor']);
 };
 </script>
 
