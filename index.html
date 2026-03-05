@@ -733,7 +733,7 @@ function renderPage(factoryNames) {
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead>
           <tr style="background:#1a1d2e">
-            ${['#','المصنع','عرض السعر','أمر القص','تاريخ الاستلام','العمل','الرخام','تاريخ التسليم','الحالة','التأخير','مرفقات','تم التحميل','الوجهة','دليفري نوت', canEdit()?'إجراءات':''].map(h=>`<th style="padding:14px 16px;text-align:right;color:#7880a0;font-weight:700;font-size:13px;border-bottom:2px solid #2a2f42;white-space:nowrap">${h}</th>`).join('')}
+            ${['#','المصنع','عرض السعر','أمر القص','تاريخ الاستلام','العمل','الرخام','تاريخ التسليم','الحالة','التأخير','مرفقات','تم التحميل','الوجهة','دليفري نوت', canEdit()?'🔧 تركيب':'', canEdit()?'إجراءات':''].map(h=>`<th style="padding:14px 16px;text-align:right;color:#7880a0;font-weight:700;font-size:13px;border-bottom:2px solid #2a2f42;white-space:nowrap">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -1313,7 +1313,7 @@ window.openInstallPage = function(orderId) {
 
   const page = document.createElement('div');
   page.id = 'installPage';
-  page.style.cssText = 'position:fixed;inset:0;background:#0d0f14;z-index:2000;overflow-y:auto;font-family:Cairo,sans-serif;direction:rtl';
+  page.style.cssText = 'position:fixed;inset:0;background:#0d0f14;z-index:2000;overflow-y:auto;overflow-x:hidden;font-family:Cairo,sans-serif;direction:rtl;-webkit-overflow-scrolling:touch';
 
   // ---- Header ----
   const header = document.createElement('div');
@@ -1332,11 +1332,11 @@ window.openInstallPage = function(orderId) {
 
   // ---- Body ----
   const body = document.createElement('div');
-  body.style.cssText = 'max-width:700px;margin:28px auto;padding:0 20px 60px;display:flex;flex-direction:column;gap:18px';
+  body.style.cssText = 'max-width:700px;width:100%;margin:28px auto;padding:0 20px 80px;display:flex;flex-direction:column;gap:18px;box-sizing:border-box';
 
   // ---- Summary Card ----
   const sumCard = document.createElement('div');
-  sumCard.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:14px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px';
+  sumCard.style.cssText = 'background:#161921;border:1px solid #2a2f42;border-radius:14px;padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px';
   sumCard.innerHTML =
     '<div><div style="color:#7880a0;font-size:11px;margin-bottom:3px">المصنع (الورشة)</div><div style="color:#e8eaf0;font-weight:700;font-size:15px">' + (order.factory||'—') + '</div></div>' +
     '<div><div style="color:#7880a0;font-size:11px;margin-bottom:3px">أمر القص</div><div style="color:#e8a840;font-weight:900;font-size:15px">' + (order.order||'—') + '</div></div>' +
@@ -1774,6 +1774,12 @@ window.importMissingOrders = async function() {
 
 // ===== DELETE ATTACHMENT =====
 window.deleteAttachment = async function(btn, key, isDelivery) {
+  // Legacy key-based delete
+  const url = window._attachMap && window._attachMap[key];
+  await window.deleteAttachmentByUrl(btn, url, isDelivery);
+};
+
+window.deleteAttachmentByUrl = async function(btn, url, isDelivery) {
   if(!confirm('حذف هذا المرفق؟')) return;
   const tr = btn.closest('tr') || btn.closest('[data-order-id]');
   if(!tr) return;
@@ -1781,7 +1787,6 @@ window.deleteAttachment = async function(btn, key, isDelivery) {
   if(!orderId) return;
   const order = orders.find(o=>o.id===orderId);
   if(!order) return;
-  const url = window._attachMap[key];
   const field = isDelivery ? 'deliveryNotes' : 'attachments';
   const deletedFile = (order[field]||[]).find(a=>(a.url||a.data)===url);
   const updated = (order[field]||[]).filter(a=>(a.url||a.data)!==url);
@@ -1922,7 +1927,6 @@ function previewFiles() {
 
 function showOrderAttachments(attachments, isDelivery) {
   isDelivery = isDelivery || false;
-  if (!window._attachMap) window._attachMap = {};
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center';
@@ -1952,31 +1956,40 @@ function showOrderAttachments(attachments, isDelivery) {
   }
 
   attachments.forEach(function(a) {
+    // Support both new {url,name,type} and old {data,name} formats
     const url = a.url || a.data || '';
+    if (!url) return;
     const isPdf = (a.name||'').toLowerCase().endsWith('.pdf') || (a.type||'').includes('pdf');
     const icon = isPdf ? '📄' : '🖼️';
-    const shortName = (a.name||'ملف').substring(0,15);
-    const key = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    window._attachMap[key] = url;
+    const shortName = (a.name||'ملف').substring(0,20);
 
     const item = document.createElement('div');
     item.style.cssText = 'display:inline-flex;align-items:center;border-radius:7px;overflow:hidden;border:1px solid #2a2f42';
 
     const openBtn = document.createElement('button');
-    openBtn.style.cssText = 'display:inline-flex;align-items:center;gap:3px;padding:3px 7px;height:24px;background:#1e2130;border:none;font-size:12px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
+    openBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1e2130;border:none;font-size:15px;cursor:pointer;color:#c8d0e8';
     openBtn.title = shortName;
-    openBtn.innerHTML = '<span style="font-size:14px">' + icon + '</span>';
-    openBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#1e2130;border:none;font-size:14px;cursor:pointer;color:#c8d0e8;font-family:Cairo,sans-serif';
-    (function(k){ openBtn.onclick = function(){ openAttachment(window._attachMap[k]); }; })(key);
+    openBtn.textContent = icon;
+    // Store URL directly - no map dependency
+    var attachUrl = url;
+    openBtn.onclick = function(e) {
+      e.stopPropagation();
+      openAttachment(attachUrl);
+    };
     item.appendChild(openBtn);
 
     if (canEdit()) {
       const delBtn = document.createElement('button');
-      delBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:24px;background:rgba(232,64,64,.15);border:none;border-right:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040';
+      delBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:26px;background:rgba(232,64,64,.12);border:none;border-right:1px solid rgba(232,64,64,.2);font-size:10px;cursor:pointer;color:#e84040';
       delBtn.title = 'حذف';
       delBtn.textContent = '✕';
-      (function(k,d){ delBtn.onclick = function(){ deleteAttachment(delBtn, k, d); }; })(key, isDelivery);
-      item.appendChild(delBtn);
+      var delUrl = url;
+      var delIsDelivery = isDelivery;
+      delBtn.onclick = function(e) {
+        e.stopPropagation();
+        deleteAttachmentByUrl(delBtn, delUrl, delIsDelivery);
+      };
+      item.insertBefore(delBtn, openBtn);
     }
     wrap.appendChild(item);
   });
