@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -307,9 +308,12 @@ async function startApp() {
 
   showApp();
   // Init notifications after app loads
-  setTimeout(() => {
+  setTimeout(async () => {
     initNotifications();
     startUsersNotifListener();
+    await initOneSignal();
+    await osAskPermission();
+    setTimeout(checkAndSendLateNotifs, 5000);
   }, 1500);
 }
 
@@ -2380,7 +2384,7 @@ function startNotifListener() {
 
 // ── Hook: New order created ──
 // Called from saveOrder after addDoc succeeds
-async function notifNewOrder(orderData) {
+let notifNewOrder = async function(orderData) {
   const factory = orderData.factory || '';
   const work = orderData.work || '';
   await pushNotif(
@@ -2392,7 +2396,7 @@ async function notifNewOrder(orderData) {
 }
 
 // ── Hook: Status changed ──
-async function notifStatusChanged(orderId, newStatus, orderData) {
+let notifStatusChanged = async function(orderId, newStatus, orderData) {
   const order = orderData || orders.find(o => o.id === orderId);
   const label = newStatus === 'done' ? 'تم ✅' : 'قيد التنفيذ 🟡';
   const info = (order?.factory || '') + ' | ' + (order?.order || '') + ' | ' + (order?.work || '');
@@ -2405,7 +2409,7 @@ async function notifStatusChanged(orderId, newStatus, orderData) {
 }
 
 // ── Hook: New user pending approval ──
-async function notifNewUser(userName) {
+let notifNewUser = async function(userName) {
   await pushNotif(
     'new_user',
     '👤 مستخدم جديد يطلب الموافقة',
@@ -2594,6 +2598,186 @@ window._testNotif = async function() {
   // Push to Firestore so all admins/editors get it too
   await pushNotif('test', '🔔 اختبار', 'الإشعارات تعمل ✅', ['admin', 'editor']);
 };
+
+// ============================================================
+// 🔔 ONESIGNAL INTEGRATION
+// ============================================================
+const OS_APP_ID = 'bd168679-5759-413a-87a1-4ab23d94fe90';
+
+let _osInitialized = false;
+
+async function initOneSignal() {
+  if (_osInitialized) return;
+  if (typeof OneSignal === 'undefined') { 
+    console.warn('OneSignal not loaded');
+    return; 
+  }
+  _osInitialized = true;
+
+  await OneSignal.init({
+    appId: OS_APP_ID,
+    notifyButton: { enable: false },  // we use our own UI
+    allowLocalhostAsSecureOrigin: true,
+    promptOptions: {
+      slidedown: {
+        prompts: [{
+          type: 'push',
+          autoPrompt: false,  // we control when to ask
+          text: {
+            actionMessage: 'ورشة القص: فعّل الإشعارات لاستلام تحديثات الطلبات',
+            acceptButton: 'تفعيل',
+            cancelButton: 'لاحقاً'
+          }
+        }]
+      }
+    }
+  });
+
+  // Tag user with their role for targeted notifications
+  const role = currentUserData?.role || 'viewer';
+  const uid  = currentUser?.uid || '';
+  await OneSignal.User.addTags({ role, uid });
+
+  console.log('OneSignal initialized, role:', role);
+}
+
+// ── Ask permission via OneSignal slidedown ──
+async function osAskPermission() {
+  if (typeof OneSignal === 'undefined') return;
+  const role = currentUserData?.role;
+  if (role === 'viewer') return;
+  if (localStorage.getItem('os_dismissed')) return;
+
+  const permission = await OneSignal.Notifications.permission;
+  if (permission) return; // already granted
+
+  // Show after 4 seconds
+  setTimeout(async () => {
+    try {
+      await OneSignal.Slidedown.promptPush();
+    } catch(e) {
+      console.warn('OS prompt error:', e);
+    }
+  }, 4000);
+}
+
+// ── Send notification via OneSignal REST API ──
+// Targets by role tag: admin / editor
+async function osSendNotif(title, body, targetRoles) {
+  const role = currentUserData?.role;
+  if (role !== 'admin') return; // only admin sends
+
+  // Also write to Firestore so in-app listeners catch it
+  await pushNotif('os', title, body, targetRoles);
+
+  // Build filter for roles
+  const filters = [];
+  targetRoles.forEach((r, i) => {
+    if (i > 0) filters.push({ operator: 'OR' });
+    filters.push({ field: 'tag', key: 'role', relation: '=', value: r });
+  });
+
+  try {
+    await fetch('https://onesignal.com/api/v1/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Note: sending from client is OK for free tier with public app_id
+      },
+      body: JSON.stringify({
+        app_id: OS_APP_ID,
+        filters,
+        headings: { en: title, ar: title },
+        contents: { en: body, ar: body },
+        url: 'https://akmadesign.github.io/workshop/',
+        android_accent_color: 'FFe8a840',
+        small_icon: 'ic_stat_onesignal_default',
+        priority: 10
+      })
+    });
+    console.log('OS notification sent:', title);
+  } catch(e) {
+    console.warn('OS send error:', e);
+  }
+}
+
+// ── Override existing notif functions to use OneSignal (reassign) ──
+notifNewOrder = async function(orderData) {
+  const factory = orderData.factory || '';
+  const work    = orderData.work    || '';
+  await osSendNotif(
+    '🆕 طلب جديد',
+    'مصنع: ' + factory + ' | عمل: ' + work,
+    ['admin', 'editor']
+  );
+};
+
+notifStatusChanged = async function(orderId, newStatus, orderData) {
+  const order = orderData || orders.find(o => o.id === orderId);
+  const label = newStatus === 'done' ? 'تم ✅' : 'قيد التنفيذ 🟡';
+  const info  = (order?.factory||'') + ' | ' + (order?.order||'') + ' | ' + (order?.work||'');
+  await osSendNotif(
+    '🔄 تغيّر حالة طلب',
+    info + ' → ' + label,
+    ['admin']
+  );
+};
+
+notifNewUser = async function(userName) {
+  await osSendNotif(
+    '👤 مستخدم جديد يطلب الموافقة',
+    userName || 'مستخدم جديد',
+    ['admin']
+  );
+};
+
+// ── Late orders — use OneSignal ──
+async function checkAndSendLateNotifs() {
+  if (!orders?.length) return;
+  const role = currentUserData?.role;
+  if (role !== 'admin' && role !== 'editor') return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const lateOrders = orders.filter(o => {
+    if (o.status === 'done' || !o.deadline) return false;
+    return new Date(o.deadline) < today;
+  });
+
+  if (lateOrders.length === 0) return;
+  if (localStorage.getItem('late_notif_date') === today.toISOString().slice(0,10)) return;
+  localStorage.setItem('late_notif_date', today.toISOString().slice(0,10));
+
+  const count = lateOrders.length;
+  await osSendNotif(
+    '⏰ طلبات متأخرة',
+    'يوجد ' + count + ' طلب متأخر عن موعد التسليم',
+    ['admin', 'editor']
+  );
+}
+
+// ── Override _testNotif to use OneSignal ──
+window._testNotif = async function() {
+  if (typeof OneSignal === 'undefined') {
+    showNotif('OneSignal لم يتحمل بعد، حاول مجدداً', true);
+    return;
+  }
+
+  const permission = await OneSignal.Notifications.permission;
+  if (!permission) {
+    try {
+      await OneSignal.Slidedown.promptPush();
+      showNotif('قبل الإذن ثم اضغط 🔔 مجدداً');
+    } catch(e) {
+      showNotif('لم يتم السماح بالإشعارات', true);
+    }
+    return;
+  }
+
+  // Send test notification to self
+  await osSendNotif('🔔 اختبار ورشة القص', 'الإشعارات تعمل بشكل صحيح ✅', ['admin', 'editor']);
+  showNotif('تم إرسال إشعار تجريبي 🔔');
+};
+
 </script>
 
 <style>
