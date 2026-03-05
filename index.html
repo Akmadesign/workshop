@@ -43,30 +43,44 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 async function uploadToCloudinary(file) {
   const timestamp = Date.now();
-  // Keep only safe chars, replace spaces and special chars
   const ext = file.name.split('.').pop().toLowerCase();
-  const safeName = timestamp + '.' + ext;
-  const filePath = safeName; // flat structure, no subfolders
+  const safeName = timestamp + '_' + Math.random().toString(36).slice(2,7) + '.' + ext;
+  const filePath = safeName;
   const uploadURL = SUPABASE_URL + '/storage/v1/object/workshop/' + filePath;
   
-  console.log('Uploading:', file.name, '->', uploadURL);
-  
-  const res = await fetch(uploadURL, {
+  // Try POST first, then PUT if it fails
+  let res = await fetch(uploadURL, {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + SUPABASE_KEY,
       'Content-Type': file.type || 'application/octet-stream',
-      'x-upsert': 'true'
+      'x-upsert': 'true',
+      'Cache-Control': 'max-age=3600'
     },
     body: file
   });
   
-  const responseText = await res.text();
-  console.log('Supabase response:', res.status, responseText);
-  
-  if (!res.ok) throw new Error('فشل الرفع (' + res.status + '): ' + responseText);
-  
+  // If POST fails with 405, try PUT
+  if (res.status === 405) {
+    res = await fetch(uploadURL, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': file.type || 'application/octet-stream',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+  }
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('Upload failed:', res.status, errText);
+    throw new Error('فشل الرفع (' + res.status + ')');
+  }
+
   const url = SUPABASE_URL + '/storage/v1/object/public/workshop/' + filePath;
+  console.log('Uploaded OK:', url);
   return { name: file.name, type: file.type, url: url };
 }
 
@@ -513,7 +527,7 @@ function render() {
   </div>
 
   <!-- TABS -->
-  <div style="display:flex;gap:4px;padding:16px 24px 0;background:#161921;border-bottom:1px solid #2a2f42;overflow-x:auto;font-family:'Cairo',sans-serif">
+  <div style="display:flex;gap:4px;padding:16px 24px 0;background:#161921;border-bottom:1px solid #2a2f42;overflow-x:auto;font-family:'Cairo',sans-serif;scrollbar-width:thin;scrollbar-color:#2a2f42 transparent;-webkit-overflow-scrolling:touch">
     ${tabBtn('dashboard','📊 لوحة التحكم')}
     ${tabBtn('all','📋 جميع الطلبات', total)}
     ${factoryNames.map(f => tabBtn(f, '🏭 '+f, orders.filter(o=>o.factory===f).length)).join('')}
@@ -525,7 +539,7 @@ function render() {
   </div>
 
   <!-- CONTENT -->
-  <div class="page-content" style="padding:20px 24px;max-width:1400px;margin:0 auto;font-family:'Cairo',sans-serif" id="pageContent">
+  <div class="page-content" style="padding:20px 24px;max-width:100%;overflow-x:hidden;font-family:'Cairo',sans-serif" id="pageContent">
     ${renderPage(factoryNames)}
   </div>
 
@@ -729,11 +743,11 @@ function renderPage(factoryNames) {
       <button onclick="exportCSV()" style="background:#1e2130;color:#e8eaf0;border:1px solid #2a2f42;border-radius:8px;padding:10px 16px;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">📥 تصدير</button>
     </div>
     ${filtered.length === 0 ? `<div style="text-align:center;padding:60px;color:#7880a0"><div style="font-size:48px;margin-bottom:16px">📭</div><p>لا توجد طلبات</p></div>` : `
-    <div class="desktop-table" style="overflow-x:auto;border-radius:12px;border:1px solid #2a2f42">
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
+    <div class="desktop-table" style="overflow-x:auto;border-radius:12px;border:1px solid #2a2f42;width:100%">
+      <table style="width:100%;min-width:1100px;border-collapse:collapse;font-size:14px;table-layout:auto">
         <thead>
           <tr style="background:#1a1d2e">
-            ${['#','المصنع','عرض السعر','أمر القص','تاريخ الاستلام','العمل','الرخام','تاريخ التسليم','الحالة','التأخير','مرفقات','تم التحميل','الوجهة','دليفري نوت', ...(canEdit()?['🔧 تركيب','إجراءات']:[])].map(h=>`<th style="padding:14px 16px;text-align:right;color:#7880a0;font-weight:700;font-size:13px;border-bottom:2px solid #2a2f42;white-space:nowrap">${h}</th>`).join('')}
+            ${['#','المصنع','عرض السعر','أمر القص','تاريخ الاستلام','العمل','الرخام','تاريخ التسليم','الحالة','التأخير','مرفقات','تم التحميل','الوجهة','دليفري نوت', ...(canEdit()?['🔧 تركيب','إجراءات']:[])].map(h=>`<th style="padding:10px 8px;text-align:right;color:#7880a0;font-weight:700;font-size:12px;border-bottom:2px solid #2a2f42;white-space:nowrap">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -742,29 +756,29 @@ function renderPage(factoryNames) {
             const late = daysLate(o);
             const rowBg = late > 0 ? 'rgba(232,64,64,.04)' : 'transparent';
             return `<tr data-order-id="${o.id}" style="border-bottom:1px solid #2a2f42;background:${rowBg}">
-              <td style="padding:10px 12px;font-size:13px">${i+1}</td>
-              <td style="padding:10px 12px"><span style="background:rgba(64,128,232,.15);color:#4080e8;padding:3px 8px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap">${o.factory||'—'}</span></td>
-              <td style="padding:10px 12px;font-weight:900;color:#e8a840;white-space:nowrap">${o.quote||'—'}</td>
-              <td style="padding:10px 12px;font-weight:900;color:#e8a840;white-space:nowrap">${o.order||'—'}</td>
-              <td style="padding:10px 12px;white-space:nowrap">${formatDate(o.receive)}</td>
-              <td style="padding:10px 12px;max-width:120px;max-height:60px;overflow:hidden;display:table-cell"><div style="max-height:56px;overflow-y:auto;line-height:1.4">${o.work||'—'}</div></td>
-              <td style="padding:10px 12px;max-width:120px"><div style="max-height:56px;overflow-y:auto;line-height:1.4">${o.marble||'—'}</div></td>
-              <td style="padding:10px 12px;white-space:nowrap">${formatDate(o.deadline)}</td>
-              <td style="padding:10px 12px;white-space:nowrap">
+              <td style="padding:6px 8px;font-size:13px">${i+1}</td>
+              <td style="padding:6px 8px"><span style="background:rgba(64,128,232,.15);color:#4080e8;padding:2px 6px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">${o.factory||'—'}</span></td>
+              <td style="padding:6px 8px;font-weight:900;color:#e8a840;white-space:nowrap">${o.quote||'—'}</td>
+              <td style="padding:6px 8px;font-weight:900;color:#e8a840;white-space:nowrap">${o.order||'—'}</td>
+              <td style="padding:6px 8px;white-space:nowrap">${formatDate(o.receive)}</td>
+              <td style="padding:6px 8px;max-width:100px;max-height:50px;overflow:hidden;display:table-cell"><div style="max-height:56px;overflow-y:auto;line-height:1.4">${o.work||'—'}</div></td>
+              <td style="padding:6px 8px;max-width:90px"><div style="max-height:56px;overflow-y:auto;line-height:1.4">${o.marble||'—'}</div></td>
+              <td style="padding:6px 8px;white-space:nowrap">${formatDate(o.deadline)}</td>
+              <td style="padding:6px 8px;white-space:nowrap">
                 <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;
                   background:${st.cls==='done'?'rgba(46,204,138,.15)':st.cls==='late'?'rgba(232,64,64,.15)':'rgba(240,192,64,.15)'};
                   color:${st.cls==='done'?'#2ecc8a':st.cls==='late'?'#e84040':'#f0c040'}">
                   ${st.icon} ${st.cls==='done'?'تم':st.cls==='late'?'متأخر':'جاري'}
                 </span>
               </td>
-              <td style="padding:10px 12px;white-space:nowrap">${late>0?`<span style="background:rgba(232,64,64,.15);color:#e84040;padding:3px 8px;border-radius:20px;font-weight:700;font-size:12px">⚠️ ${late}ي</span>`:'—'}</td>
-              <td style="padding:8px 12px">${showOrderAttachments(o.attachments)}</td>
-              <td style="padding:8px 12px;text-align:center">
+              <td style="padding:6px 8px;white-space:nowrap">${late>0?`<span style="background:rgba(232,64,64,.15);color:#e84040;padding:3px 8px;border-radius:20px;font-weight:700;font-size:12px">⚠️ ${late}ي</span>`:'—'}</td>
+              <td style="padding:4px 6px">${showOrderAttachments(o.attachments)}</td>
+              <td style="padding:4px 6px;text-align:center">
                 ${canEdit()
                   ? `<input type="checkbox" ${o.delivered?'checked':''} onchange="toggleDelivered('${o.id}',this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#2ecc8a">`
                   : o.delivered?'✅':'—'}
               </td>
-              <td style="padding:8px 12px">
+              <td style="padding:4px 6px">
                 ${canEdit()
                   ? `<select onchange="updateDestination('${o.id}',this.value)" style="background:#1e2130;border:1px solid #2a2f42;border-radius:6px;color:#e8eaf0;padding:4px 6px;font-family:'Cairo',sans-serif;font-size:12px;cursor:pointer;max-width:130px">
                       <option value="" ${!o.destination?'selected':''}>—</option>
@@ -773,8 +787,8 @@ function renderPage(factoryNames) {
                     </select>`
                   : o.destination==='client'?'👤 العميل':o.destination==='warehouse'?'🏭 المستودع':'—'}
               </td>
-              <td style="padding:8px 12px">${showOrderAttachments(o.deliveryNotes, true)}</td>
-              <td style="padding:8px 12px;text-align:center">
+              <td style="padding:4px 6px">${showOrderAttachments(o.deliveryNotes, true)}</td>
+              <td style="padding:4px 6px;text-align:center">
                 ${canEdit()
                   ? `<input type="checkbox" ${o.installation?'checked':''} onchange="toggleInstallation('${o.id}',this.checked)"
                       style="width:18px;height:18px;cursor:pointer;accent-color:#e8a840"
@@ -957,7 +971,7 @@ async function renderUsersPage() {
       <h2 style="font-size:20px;font-weight:900;color:#e8a840">👥 إدارة المستخدمين</h2>
       <button onclick="openUserModal()" style="background:#e8a840;color:#000;border:none;border-radius:8px;padding:10px 18px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:700;cursor:pointer">+ إضافة مستخدم</button>
     </div>
-    <div class="desktop-table" style="overflow-x:auto;border-radius:12px;border:1px solid #2a2f42">
+    <div class="desktop-table" style="overflow-x:auto;border-radius:12px;border:1px solid #2a2f42;width:100%">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead><tr style="background:#1a1d2e">
           ${['الاسم','البريد الإلكتروني','الصلاحية','الحالة','إجراءات'].map(h=>`<th style="padding:14px 16px;text-align:right;color:#7880a0;font-weight:700;font-size:13px;border-bottom:2px solid #2a2f42">${h}</th>`).join('')}
@@ -1872,9 +1886,9 @@ window.updateDestination = async function(id, value) {
 
 window.uploadAttachmentDirect = async function(event, inputEl) {
   const tr = inputEl.closest('tr') || inputEl.closest('[data-order-id]');
-  if (!tr) return;
+  if (!tr) { showNotif('خطأ: لم يتم تحديد الطلب', true); return; }
   const orderId = tr.dataset.orderId;
-  if (!orderId) return;
+  if (!orderId) { showNotif('خطأ: معرف الطلب مفقود', true); return; }
   const order = orders.find(o=>o.id===orderId);
   if (!order) return;
   const files = event.target.files;
@@ -1892,6 +1906,8 @@ window.uploadAttachmentDirect = async function(event, inputEl) {
     await updateDoc(doc(db,'orders',orderId), {attachments:[...existing,...newAttachments], updatedAt:serverTimestamp(), updatedBy:currentUser.uid});
     await logActivity(orderId, 'attachment', 'تم رفع ' + newAttachments.length + ' مرفق جديد');
     showNotif('تم رفع المرفقات ✅');
+  } else {
+    showNotif('لم يتم رفع أي ملف — تحقق من الحجم أو النوع', true);
   }
 };
 
@@ -1910,7 +1926,10 @@ window.uploadDeliveryNote = async function(event, inputEl) {
     await updateDoc(doc(db,'orders',orderId), { deliveryNotes: [...existing, result], updatedAt:serverTimestamp(), updatedBy:currentUser.uid });
     await logActivity(orderId, 'attachment', 'تم رفع دليفري نوت: ' + file.name);
     showNotif('تم رفع دليفري نوت ✅');
-  } catch(e) { showNotif('خطأ: '+e.message, true); }
+  } catch(e) { 
+    console.error('Upload error:', e);
+    showNotif('فشل الرفع: ' + e.message, true); 
+  }
 };
 
 window.deleteUser = async function(id) {
